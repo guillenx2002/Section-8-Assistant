@@ -9,11 +9,18 @@ EST = zoneinfo.ZoneInfo("US/Eastern")
 
 class Section8Bot(commands.Bot):
     def __init__(self):
+        # We must enable message_content intent to see "!test"
         intents = discord.Intents.default()
+        intents.message_content = True 
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
         self.scheduled_announcement.start()
+
+    # --- NEW TEST COMMAND ---
+    @commands.command()
+    async def test(self, ctx):
+        await ctx.send("✅ **Section 8 Helper is online!** Commands are working correctly.")
 
     @tasks.loop(time=[
         datetime.time(hour=0, minute=0, tzinfo=EST), 
