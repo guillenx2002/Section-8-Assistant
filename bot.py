@@ -15,16 +15,17 @@ class Section8Bot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # 1. Start the background task
+        # Start the background task
         self.scheduled_announcement.start()
         
-        # 2. Add the commands to the tree so Discord can see them
+        # CLEAR THE TREE and RE-ADD (This fixes "not responding")
+        self.tree.clear_commands(guild=None)
         self.tree.add_command(self.setup)
         self.tree.add_command(self.test_now)
         
-        # 3. Sync the tree to Discord's servers
+        # Sync the tree to Discord's global servers
         await self.tree.sync()
-        print("✅ Slash commands officially synced to Discord!")
+        print("✅ Slash commands cleaned and re-synced!")
 
     async def on_ready(self):
         print(f'🚀 Logged in as {self.user} (ID: {self.user.id})')
@@ -33,15 +34,18 @@ class Section8Bot(commands.Bot):
     @app_commands.command(name="setup", description="Change the announcement channel")
     @app_commands.describe(channel="The channel where updates should be posted")
     async def setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        # This stops the 3-second timeout error
         await interaction.response.defer(ephemeral=True)
+        
         Config.ANNOUNCEMENT_CHANNEL_ID = channel.id
         await interaction.followup.send(f"✅ Announcement channel updated to {channel.mention}!")
 
     @app_commands.command(name="test_now", description="Force a test announcement right now")
     async def test_now(self, interaction: discord.Interaction):
+        # This stops the 3-second timeout error
         await interaction.response.defer()
-        channel = self.get_channel(Config.ANNOUNCEMENT_CHANNEL_ID)
         
+        channel = self.get_channel(Config.ANNOUNCEMENT_CHANNEL_ID)
         if channel:
             embed = discord.Embed(
                 title=Config.EMBED_TITLE,
