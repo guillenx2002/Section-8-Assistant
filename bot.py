@@ -12,37 +12,32 @@ class Section8Bot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        # We use ! as a backup prefix
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Start the background task
+        # Only start the loop here, do NOT sync here
         self.scheduled_announcement.start()
-        
-        # CLEAR THE TREE and RE-ADD (This fixes "not responding")
-        self.tree.clear_commands(guild=None)
-        self.tree.add_command(self.setup)
-        self.tree.add_command(self.test_now)
-        
-        # Sync the tree to Discord's global servers
-        await self.tree.sync()
-        print("✅ Slash commands cleaned and re-synced!")
 
     async def on_ready(self):
-        print(f'🚀 Logged in as {self.user} (ID: {self.user.id})')
+        print(f'🚀 {self.user} is online and waiting for !sync')
+
+    # --- THE MANUAL SYNC COMMAND ---
+    # Type !sync in your Discord server to fix the / commands
+    @commands.command()
+    @commands.is_owner()
+    async def sync(self, ctx):
+        await ctx.send("Syncing commands... please wait.")
+        try:
+            synced = await self.tree.sync()
+            await ctx.send(f"✅ Successfully synced {len(synced)} commands!")
+        except Exception as e:
+            await ctx.send(f"❌ Sync failed: {e}")
 
     # --- SLASH COMMANDS ---
-    @app_commands.command(name="setup", description="Change the announcement channel")
-    @app_commands.describe(channel="The channel where updates should be posted")
-    async def setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        # This stops the 3-second timeout error
-        await interaction.response.defer(ephemeral=True)
-        
-        Config.ANNOUNCEMENT_CHANNEL_ID = channel.id
-        await interaction.followup.send(f"✅ Announcement channel updated to {channel.mention}!")
-
-    @app_commands.command(name="test_now", description="Force a test announcement right now")
+    @app_commands.command(name="test_now", description="Force a test announcement")
     async def test_now(self, interaction: discord.Interaction):
-        # This stops the 3-second timeout error
+        # We defer FIRST to stop the "not responding" error
         await interaction.response.defer()
         
         channel = self.get_channel(Config.ANNOUNCEMENT_CHANNEL_ID)
@@ -54,11 +49,10 @@ class Section8Bot(commands.Bot):
             )
             embed.set_footer(text=Config.FOOTER_TEXT)
             await channel.send(embed=embed)
-            await interaction.followup.send("✅ Test announcement sent!")
+            await interaction.followup.send("✅ Sent!")
         else:
-            await interaction.followup.send("❌ Error: Channel not found. Use /setup first.")
+            await interaction.followup.send("❌ Error: Channel not found.")
 
-    # --- SCHEDULED TASK ---
     @tasks.loop(time=[
         datetime.time(hour=0, minute=0, tzinfo=EST), 
         datetime.time(hour=12, minute=0, tzinfo=EST)
@@ -70,13 +64,13 @@ class Section8Bot(commands.Bot):
             channel = self.get_channel(Config.ANNOUNCEMENT_CHANNEL_ID)
             if channel:
                 time_label = "Noon" if now.hour == 12 else "Midnight"
-                desc = "☀️ **Mid-day Update**" if time_label == "Noon" else "🌙 **Midnight Update**"
-                
+                desc = f"☀️ **{time_label} Update**"
                 embed = discord.Embed(title=Config.EMBED_TITLE, description=desc, color=Config.EMBED_COLOR)
-                embed.set_footer(text=Config.FOOTER_TEXT)
                 await channel.send(embed=embed)
-                print(f"Sent {time_label} announcement.")
 
-# Initialize and run
 bot = Section8Bot()
+
+# Manually add the slash command to the tree
+bot.tree.add_command(bot.test_now)
+
 bot.run(Config.TOKEN)
