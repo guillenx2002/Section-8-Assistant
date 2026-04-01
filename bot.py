@@ -12,27 +12,34 @@ class Section8Bot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        # We define the command prefix, but we'll focus on Slash Commands
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Start the background task first
+        # Start background task
         self.scheduled_announcement.start()
-        # This syncs the commands so they appear in the / menu
+        # Syncing here ensures Discord knows about your commands
         await self.tree.sync()
 
     async def on_ready(self):
         print(f'✅ Logged in as {self.user} (ID: {self.user.id})')
         print("Slash commands are synced and ready!")
 
-    # --- SLASH COMMANDS (Inside the class) ---
+    # --- SLASH COMMANDS ---
     @app_commands.command(name="setup", description="Change the announcement channel")
     @app_commands.describe(channel="The channel where updates should be posted")
     async def setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        # Tell Discord to wait (Fixes "Application did not respond")
+        await interaction.response.defer(ephemeral=True)
+        
         Config.ANNOUNCEMENT_CHANNEL_ID = channel.id
-        await interaction.response.send_message(f"✅ Announcement channel updated to {channel.mention}!")
+        await interaction.followup.send(f"✅ Announcement channel updated to {channel.mention}!")
 
     @app_commands.command(name="test_now", description="Force a test announcement right now")
     async def test_now(self, interaction: discord.Interaction):
+        # Tell Discord to wait
+        await interaction.response.defer()
+        
         channel = self.get_channel(Config.ANNOUNCEMENT_CHANNEL_ID)
         if channel:
             embed = discord.Embed(
@@ -42,9 +49,9 @@ class Section8Bot(commands.Bot):
             )
             embed.set_footer(text=Config.FOOTER_TEXT)
             await channel.send(embed=embed)
-            await interaction.response.send_message("Sent!")
+            await interaction.followup.send("✅ Test announcement sent!")
         else:
-            await interaction.response.send_message("Error: Could not find the channel. Use /setup first.")
+            await interaction.followup.send("❌ Error: Could not find the channel. Please try /setup again.")
 
     # --- SCHEDULED TASK ---
     @tasks.loop(time=[
@@ -68,9 +75,8 @@ class Section8Bot(commands.Bot):
 # Initialize the bot
 bot = Section8Bot()
 
-# We add the commands TO THE TREE from the CLASS here
-bot.tree.add_command(bot.setup)
-bot.tree.add_command(bot.test_now)
+# NOTE: We do NOT need bot.tree.add_command here because 
+# @app_commands.command is already inside the Section8Bot class.
 
 # Run the bot
 bot.run(Config.TOKEN)
